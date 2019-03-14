@@ -1,0 +1,4 @@
+*.o
+wfmlut_creator/bin
+wfmlut_creator/obj
+proj
