@@ -9,6 +9,10 @@
 #include <string.h>
 #include <math.h>
 
+/**
+ * This is the format specifier (template, if you will) of the VHDL
+ * code that will be created by this program.
+ */
 static const char *vhdl_fmt = "\
 library ieee;\n\
 use ieee.std_logic_1164.all;\n\
@@ -36,15 +40,25 @@ begin\n\
 end architecture;\n";
 
 /**
- * TODO
+ * This function converts a double @c x into a binary string @c b
+ * representation that is @c nbits wide. The binary number is in Q1.nbits-1
+ * format. In other words, there will be 1 sign bit and @c nbits-1 fraction
+ * bits. There are no integer bits other than the sign. Only the fractional
+ * portion of the double @c x is considered. The integer portion is ignored.
+ * @param x The double to be converted. Only the fractional portion of the
+ *   number is considered. The integer portion is ignored.
+ * @param b The binary string representation of the fractional portion of @c x
+ * @param nbits The width of the output binary number. The actual string
+ *   buffer is nbits+1 to account for the trailing '\0'
  */
 char *dtob(double x, char *b, size_t nbits)
 {
 	double xi, xf;
-	xf = modf(x, &xi);
 
 	if (b == NULL)
 		return NULL;
+
+	xf = modf(x, &xi);
 
 	if (x < 0)
 	{
