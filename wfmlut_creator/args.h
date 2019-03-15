@@ -14,10 +14,19 @@ extern "C"
 const char *argp_program_version = "0.1";
 const char *argp_program_bug_address = "<rory.rudolph@outlook.com>";
 
+/**
+ * TODO Document
+ */
 static char doc[] = "This program creates a VHDL module of a sine and cosine LUT.";
 
+/**
+ * TODO Document
+ */
 static char args_doc[] = "";
 
+/**
+ * TODO Document
+ */
 static struct argp_option options[] =
 {
 	{ "verbose", 'v', 0, 0, "Print debug messages", 0 },
@@ -25,9 +34,14 @@ static struct argp_option options[] =
 		"Default=" STR(DEFAULT_WIDTH), 0 },
 	{ "depth", 'd', "NUM", 0, "The depth of the LUT. "
 		"Default=" STR(DEFAULT_DEPTH), 0 },
+	{ "output", 'o', "FILE", 0, "The VHDL output file. If it already exists "
+		"it will be overwritten. Default=" DEFAULT_OUTPUT_FILE, 0 },
 	{ 0 }
 };
 
+/**
+ * TODO Document
+ */
 static error_t parse_opt(int key, char *arg, struct argp_state *state)
 {
 
@@ -37,6 +51,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 	{
 		case 'd':
 			cfg->depth = atoi(arg);
+			break;
+		case 'o':
+			snprintf(cfg->output_file, sizeof(cfg->output_file), "%s", arg);
 			break;
 		case 'v':
 			cfg->verbose = 1;
@@ -51,6 +68,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
+/**
+ * TODO Document
+ */
 static struct argp argp = 
 {
 	options,
