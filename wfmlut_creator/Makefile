@@ -1,17 +1,15 @@
-CC := gcc
-
 BIN_DIR := bin
 OBJ_DIR := obj
 SRC_DIR := .
 INC_DIR := .
 
 BINS := $(BIN_DIR)/wfmlut_creator
-SRCS := $(shell find $(SRC_DIR) -type f -iname "*.c")
-INCS := $(shell find $(INC_DIR) -type f -iname "*.h")
+SRCS := $(wildcard $(SRC_DIR)/*.c)
+INCS := $(wildcard $(SRC_DIR)/*.h)
 OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 
 LDFLAGS := -lm
-CFLAGS := -Wall -Werror -Wextra
+override CFLAGS += -Wall -Werror -Wextra
 
 all: $(BINS)
 
