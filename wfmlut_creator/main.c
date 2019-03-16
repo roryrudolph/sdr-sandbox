@@ -40,51 +40,59 @@ begin\n\
 end architecture;\n";
 
 /**
- * This function converts a double @c x into a binary string @c b
+ * This function converts a double @c x into a binary string 
  * representation that is @c nbits wide. The binary number is in Q1.nbits-1
  * format. In other words, there will be 1 sign bit and @c nbits-1 fraction
- * bits. There are no integer bits other than the sign. Only the fractional
- * portion of the double @c x is considered. The integer portion is ignored.
- * @param x The double to be converted. Only the fractional portion of the
- *   number is considered. The integer portion is ignored.
- * @param b The binary string representation of the fractional portion of @c x
+ * bits. There are no integer bits other than the sign, thus the input number
+ * must be normalized from -1 to 1 to avoid truncation. 
+ * @param x The double to be converted
  * @param nbits The width of the output binary number. The actual string
  *   buffer is nbits+1 to account for the trailing '\0'
+ * @return Returns a pointer to the binary string representation of @c x.
+ *   Must call free() to release memory.
  */
-char *dtob(double x, char *b, size_t nbits)
+char *dtob(double x, size_t nbits)
 {
-	double xi, xf;
+	double val;
+	char *b, *bptr;
 
-	if (b == NULL)
+	if ((b = calloc(nbits+1, 1)) == NULL)
 		return NULL;
 
-	xf = modf(x, &xi);
+	bptr = b;
+
+	if (x < -1.0f)
+	{
+		for (size_t i = 0; i < nbits; ++i)
+		{
+			b[i] = i == 0 ? '1' : '0';
+		}
+		return b;
+	}
 
 	if (x < 0)
 	{
-		*b++ = '1';
-		xf *= -1.0f;
+		x += 1.0f;
+		*bptr++ = '1';
 	}
-	else 
+	else
 	{
-		*b++ = '0';
+		*bptr++ = '0';
 	}
 
 	for (size_t i = 1; i <= nbits; ++i)
 	{
-		double val = 1.0f/pow(2, i);
-		printf("x %f , xf %f , val %f , b %s\n", x, xf, val, b);
-		if (xf >= val)
+		val = 1.0f/pow(2, i);
+		if (x >= val)
 		{
-			*b++ = '1';
-			xf -= val;
+			*bptr++ = '1';
+			x -= val;
 		}
 		else
 		{
-			*b++ = '0';
+			*bptr++ = '0';
 		}
 	}
-	printf("\n");
 	
 	return b;
 }
@@ -101,6 +109,8 @@ int main(int argc, char **argv)
 	size_t nlut;
 	size_t nline;
 	char *vhdl;
+	char *line_fmt;
+	char *lut;
 	size_t rc;
 
 	/* Program configuration */
@@ -117,24 +127,11 @@ int main(int argc, char **argv)
 	argp_parse(&argp, argc, argv, 0, 0, &cfg);
 	/* End arg parsing stuff */
 
-	if (cfg.verbose)
-	{
-		printf("Width       : %d\n", cfg.width);
-		printf("Depth       : %d\n", cfg.depth);
-		printf("Output file : %s\n", cfg.output_file);
-	}
-
-	if (cfg.verbose)
-		printf("Opening output file '%s' for writing\n", cfg.output_file);
-
-	if ((fp = fopen(cfg.output_file, "w")) == NULL)
-	{
-		printf("ERROR: Could not open output file handle: %s\n", strerror(errno));
-		return EXIT_FAILURE;
-	}
+	/* the lines between the case statement */
+	line_fmt = "\t\t\twhen \"%s\" => sin <= \"%s\"; cos <= \"%s\";\n";
 
 	/* 36 is the number of hard-coded characters in the line */
-	nline = 36 + 3 * cfg.width;
+	nline = 36 + 3 * (int) ceil(log2(cfg.depth));
 
 	/* The LUT portion of the VHDL (inside the case statement) will be
 	 * cfg.depth lines long, each line is nline characters
@@ -154,26 +151,48 @@ int main(int argc, char **argv)
 		nfile += 3;
 
 	if (cfg.verbose)
-		printf("VHDL file will be at most %zu bytes\n", nfile);
+	{
+		int pad = -1 * (int)strlen("Num line characters");
+		printf("%*s : %d\n", pad, "Width", cfg.width);
+		printf("%*s : %d\n", pad, "Depth", cfg.depth);
+		printf("%*s : %s\n", pad, "Output file", cfg.output_file);
+		printf("%*s : %zu\n", pad, "Num line characters", nline);
+		printf("%*s : %zu\n", pad, "Num LUT characters", nlut);
+		printf("%*s : %zu\n", pad, "Num file characters", nfile);
+	}
 
-	vhdl = calloc(1, nfile);
+	if (cfg.verbose)
+		printf("Opening output file '%s' for writing\n", cfg.output_file);
+
+	/* Open the output file */
+	if ((fp = fopen(cfg.output_file, "w")) == NULL)
+	{
+		printf("ERROR: Could not open output file handle: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	if ((vhdl = calloc(1, nfile)) == NULL)
+	{
+		printf("ERROR: Could not allocate memory for file: %s\n", strerror(errno));
+		goto cleanup;
+	}
 	
-	char *line_fmt = "\t\t\twhen \"%s\" => sin <= \"%s\"; cos <= \"%s\";\n";
-	char lut[nlut];
-	memset(lut, 0, sizeof(lut));
+	if ((lut = calloc(1, nlut)) == NULL)
+	{
+		printf("ERROR: Could not allocate memory for LUT: %s\n", strerror(errno));
+		goto cleanup;
+	}
 
 	/* Create the VHDL lines in the case statement */
 	for (int i = 0; i < cfg.depth; ++i)
 	{
 		char indstr[cfg.width+1];
-		char sinstr[cfg.width+1];
-		char cosstr[cfg.width+1];
+		char *sinstr;
+		char *cosstr;
 		char line[nline];
 		double phi, s, c;
 
 		memset(indstr, 0, sizeof(indstr));
-		memset(sinstr, 0, sizeof(sinstr));
-		memset(cosstr, 0, sizeof(cosstr));
 		memset(line, 0, sizeof(line));
 
 		phi = 2.0f * M_PI * i / cfg.depth;
@@ -181,11 +200,17 @@ int main(int argc, char **argv)
 		c = cos(phi);
 
 		snprintf(indstr, sizeof(indstr), "%d", i);
-		dtob(s, &sinstr[0], cfg.width);
-		dtob(c, &cosstr[0], cfg.width);
+		sinstr = dtob(s, cfg.width);
+		cosstr = dtob(c, cfg.width);
 
 		snprintf(line, sizeof(line), line_fmt, indstr, sinstr, cosstr);
 		memcpy(&lut[strlen(lut)], line, strlen(line));
+		printf("%s\n", line);
+
+		if (sinstr)
+			free(sinstr);
+		if (cosstr)
+			free(cosstr);
 	} 
 
 	snprintf(vhdl, nfile, vhdl_fmt, cfg.width-1, cfg.width-1, cfg.width-1, lut);
@@ -214,6 +239,5 @@ cleanup:
 		return EXIT_FAILURE;
 	}
 	
-
 	return 0;
 }
