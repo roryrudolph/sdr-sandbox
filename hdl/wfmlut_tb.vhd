@@ -12,15 +12,15 @@ architecture arch of wfmlut_tb is
 	component wfmlut is
 		port (
 			addr : in std_logic_vector (7 downto 0);
-			sin  : out std_logic_vector (7 downto 0);
-			cos  : out std_logic_vector (7 downto 0)
+			sin  : out std_logic_vector (15 downto 0);
+			cos  : out std_logic_vector (15 downto 0)
 		);
 	end component;
 
 	signal clk      : std_logic;
 	signal addr     : std_logic_vector (7 downto 0) := (others => '0');
-	signal sin      : std_logic_vector (7 downto 0) := (others => '0');
-	signal cos      : std_logic_vector (7 downto 0) := (others => '0');
+	signal sin      : std_logic_vector (15 downto 0) := (others => '0');
+	signal cos      : std_logic_vector (15 downto 0) := (others => '0');
 
 begin
 

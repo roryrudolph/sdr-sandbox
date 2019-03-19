@@ -20,9 +20,9 @@ use ieee.numeric_std.all;\n\
 \n\
 entity wfmlut is\n\
 	port (\n\
-		addr : in std_logic_vector (%d downto 0);\n\
-		sin  : out std_logic_vector (%d downto 0);\n\
-		cos  : out std_logic_vector (%d downto 0)\n\
+		addr : in std_logic_vector (%zu downto 0);\n\
+		sin  : out std_logic_vector (%zu downto 0);\n\
+		cos  : out std_logic_vector (%zu downto 0)\n\
 	);\n\
 end entity;\n\
 \n\
@@ -160,7 +160,8 @@ int main(int argc, char **argv)
 	char *line_fmt;
 	char *lut;
 	size_t rc;
-	int bitwidth;
+	size_t nbits_out;
+	size_t nbits_depth;
 
 	/* Program configuration */
 	cfg_t cfg =
@@ -178,16 +179,22 @@ int main(int argc, char **argv)
 	/* End arg parsing stuff */
 
 	/* The number of output bits */
-	bitwidth = cfg.ibits + cfg.fbits;
+	nbits_out = cfg.ibits + cfg.fbits;
+
+	/* The number of bits in the address in parameter, which is what indexes
+	 * into the case statement, a.k.a. the depth
+	 */
+	nbits_depth = (size_t) lround(log2(cfg.depth));
+
 
 	/* the lines between the case statement */
 	line_fmt = "\t\t\twhen \"%s\" => sin <= \"%s\"; cos <= \"%s\";\n";
 
-	/* 36 is the number of hard-coded characters in the line format
-	 * log2(cfg.depth) is the number of bits it takes to code the first '%s'
-	 * and bitwidth is the for the next two '%s'. Plus 1 for trailing \0
+	/* 36 is the number of hard-coded characters in the line format.
+	 * nbits_depth is the number of bits it takes to code the first '%s'.
+	 * nbits_out is the for the next two '%s'. Plus 1 for trailing \0
 	 */
-	nline = 36 + (size_t) lround(log2(cfg.depth)) + 2 * bitwidth + 1;
+	nline = 36 + nbits_depth + 2 * nbits_out + 1;
 
 	/* The LUT portion of the VHDL (inside the case statement) will be
 	 * cfg.depth lines long, each line is nline characters
@@ -195,36 +202,40 @@ int main(int argc, char **argv)
 	nlut = cfg.depth * nline;
 
 	/* The overall file size is the length of the vhdl_fmt string minus
-	 * the 6 '%d' and the 2 '%s' characters plus the length of the strings
-	 * that take the place of those format specifiers. The 3 assumes that
-	 * the '%d' strings in the entity declaration are replaced by a single
-	 * digit number. See below if more digits are needed.
+	 * the '%zu' characters and the '%s' characters, plus the length of the
+	 * strings that replace them. We assume we are replacing the '%zu' strings
+	 * with a single-digit integer, and thus we lose 9 characters
+	 * (strlen("%zu")*3) and gain 3. We replace the '%s' string with the
+	 * number of characters in the LUT string.
 	 */
-	nfile = strlen(vhdl_fmt) - 6 - 2 + 3 + nlut;
+	nfile = strlen(vhdl_fmt) - 9 + 3 - 2 + nlut;
 
-	/* We assumed the bitwidth was 1 above, which replaced 3 of the '%d'
-	 * characters in the vhdl_fmt string, for a loss of 6 characters and a 
-	 * gain of 3 (net 3). If instead the bitwidth is a number that takes up 2
-	 * character digits to display then we need to add 3 more to the file
-	 * length to account for the extra 3 characters. If it takes more than 2
-	 * (i.e. representing a std_logic_vector(xxx downto 0)), then you've lost
-	 * your mind.
+	/* We assumed above we replaced the two 'out' parameters (the %zu strings)
+	 * with a single-digit number. If in fact it's a two-digit number we have
+	 * to add two more characters to the total. If it's more than two
+	 * you're design probably won't work; is crazy.
 	 */
-	if (bitwidth >= 10)
-		nfile += 3;
+	if (nbits_out >= 10)
+		nfile += 2;
+
+	/* Same thing as nbits_out but with the 'in' address parameter */
+	if (nbits_depth >= 10)
+		nfile += 1;
 
 	if (cfg.verbose)
 	{
-		int pad = -1 * (int)strlen("Num line characters");
+		int pad = -1 * (int)strlen("Num chars in VHDL fmt");
 		printf("%*s : %d\n", pad, "Integer bits", cfg.ibits);
 		printf("%*s : %d\n", pad, "Fractional bits", cfg.fbits);
-		printf("%*s : %d\n", pad, "Width", bitwidth);
+		printf("%*s : %zu\n", pad, "Output width", nbits_out);
 		printf("%*s : %d\n", pad, "Depth", cfg.depth);
 		printf("%*s : %zu\n", pad, "Depth bits", (size_t) lround(log2(cfg.depth)));
 		printf("%*s : %s\n", pad, "Output file", cfg.output_file);
-		printf("%*s : %zu\n", pad, "Num line characters", nline);
-		printf("%*s : %zu\n", pad, "Num LUT characters", nlut);
-		printf("%*s : %zu\n", pad, "Num file characters", nfile);
+		printf("%*s : %zu\n", pad, "Num chars in line", nline);
+		printf("%*s : %zu\n", pad, "Num chars in LUT", nlut);
+		printf("%*s : %zu\n", pad, "Num chars in file", nfile);
+		printf("%*s : %zu\n", pad, "Num chars in VHDL fmt", strlen(vhdl_fmt));
+		printf("%*s : %zu\n", pad, "Num chars in line fmt", strlen(line_fmt));
 	}
 
 	if (cfg.verbose)
@@ -252,18 +263,16 @@ int main(int argc, char **argv)
 	/* Create the VHDL lines in the case statement */
 	for (int i = 0; i < cfg.depth; ++i)
 	{
-		char indstr[bitwidth + 1];
+		char indstr[nbits_out + 1];
 		char *sinstr;
 		char *cosstr;
 		char line[nline];
 		double phi, s, c;
-		size_t nbits_depth;
 
 		memset(indstr, 0, sizeof(indstr));
 		memset(line, 0, sizeof(line));
 
 		/* Create binary string of int index */
-		nbits_depth = (size_t) lround(log2(cfg.depth));
 		for (int j = nbits_depth-1; j >= 0; --j)
 			indstr[j] = ((i >> (nbits_depth-1-j)) & 1) == 0 ? '0' : '1';
 
@@ -271,8 +280,8 @@ int main(int argc, char **argv)
 		s = sin(phi);
 		c = cos(phi);
 
-		sinstr = dtob(s, 1, bitwidth - 1);
-		cosstr = dtob(c, 1, bitwidth - 1);
+		sinstr = dtob(s, 1, nbits_out - 1);
+		cosstr = dtob(c, 1, nbits_out - 1);
 
 		snprintf(line, sizeof(line), line_fmt, indstr, sinstr, cosstr);
 		memcpy(&lut[strlen(lut)], line, strlen(line));
@@ -286,7 +295,7 @@ int main(int argc, char **argv)
 			free(cosstr);
 	} 
 
-	snprintf(vhdl, nfile, vhdl_fmt, bitwidth-1, bitwidth-1, bitwidth-1, lut);
+	snprintf(vhdl, nfile, vhdl_fmt, nbits_depth-1, nbits_out-1, nbits_out-1, lut);
 
 	if (cfg.verbose)
 		printf("Writing %zu bytes to %s\n", strlen(vhdl), cfg.output_file);
