@@ -30,8 +30,10 @@ static char args_doc[] = "";
 static struct argp_option options[] =
 {
 	{ "verbose", 'v', 0, 0, "Print debug messages", 0 },
-	{ "width", 'w', "NUM", 0, "The bit width of the LUT. "
-		"Default=" STR(DEFAULT_WIDTH), 0 },
+	{ "ibits", 'i', "NUM", 0, "Number of integer bits in the LUT values. "
+		"Default=" STR(DEFAULT_IBITS), 0 },
+	{ "fbits", 'f', "NUM", 0, "Number of fractional bits in the LUT values. "
+		"Default=" STR(DEFAULT_FBITS), 0 },
 	{ "depth", 'd', "NUM", 0, "The depth of the LUT. "
 		"Default=" STR(DEFAULT_DEPTH), 0 },
 	{ "output", 'o', "FILE", 0, "The VHDL output file. If it already exists "
@@ -52,14 +54,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 		case 'd':
 			cfg->depth = atoi(arg);
 			break;
+		case 'f':
+			cfg->fbits = atoi(arg);
+			break;
+		case 'i':
+			cfg->ibits = atoi(arg);
+			break;
 		case 'o':
 			snprintf(cfg->output_file, sizeof(cfg->output_file), "%s", arg);
 			break;
 		case 'v':
 			cfg->verbose = 1;
-			break;
-		case 'w':
-			cfg->width = atoi(arg);
 			break;
 		default:
 			return ARGP_ERR_UNKNOWN;

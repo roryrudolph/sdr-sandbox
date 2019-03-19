@@ -10,7 +10,8 @@ extern "C"
 #define STR(x)   _STR(x)
 
 #define DEFAULT_VERBOSE      0
-#define DEFAULT_WIDTH        16
+#define DEFAULT_IBITS        1
+#define DEFAULT_FBITS        15
 #define DEFAULT_DEPTH        256
 #define DEFAULT_OUTPUT_FILE  "wfmlut.vhd"
 
@@ -20,7 +21,8 @@ extern "C"
 typedef struct cfg
 {
 	int verbose;
-	int width;
+	int ibits;
+	int fbits;
 	int depth;
 	char output_file[32];
 } cfg_t;
